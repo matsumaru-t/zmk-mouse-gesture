@@ -486,19 +486,38 @@ static int input_processor_mouse_gesture_handle_event(const struct device *dev,
     ARG_UNUSED(param2);
     ARG_UNUSED(state);
 
+    const struct input_processor_mouse_gesture_config *config = dev->config;
+    struct input_processor_mouse_gesture_data *data = dev->data;
+
     /* Only care about REL_X / REL_Y events */
     if (!(event->type == INPUT_EV_REL &&
           (event->code == INPUT_REL_X || event->code == INPUT_REL_Y))) {
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
-    /* Ignore small movements  */
-    const struct input_processor_mouse_gesture_config *config = dev->config;
+    /* Suppress all mouse movement if configured and gesture is active */
+    if (config->suppress_movement && data->is_active) {
+        /* Still process for gesture detection if movement is large enough */
+        if (abs(event->value) >= config->movement_threshold) {
+            struct mouse_rel_msg msg = {
+                .dev = dev,
+                .code = event->code,
+                .value = event->value,
+            };
+
+            if (k_msgq_put(&mouse_rel_msgq, &msg, K_MSEC(10)) != 0) {
+                LOG_WRN("Mouse rel queue full – movement dropped");
+            }
+
+            k_work_submit(&gesture_exec_work);
+        }
+        return ZMK_INPUT_PROC_STOP;
+    }
+
+    /* Ignore small movements when not suppressing */
     if (abs(event->value) < config->movement_threshold) {
         return ZMK_INPUT_PROC_CONTINUE;
     }
-
-    struct input_processor_mouse_gesture_data *data = dev->data;
 
     struct mouse_rel_msg msg = {
         .dev = dev,
@@ -512,11 +531,6 @@ static int input_processor_mouse_gesture_handle_event(const struct device *dev,
     }
 
     k_work_submit(&gesture_exec_work);
-
-    /* Suppress mouse movement if configured and gesture is active */
-    if (config->suppress_movement && data->is_active) {
-        return ZMK_INPUT_PROC_STOP;
-    }
 
     return ZMK_INPUT_PROC_CONTINUE;
 }
