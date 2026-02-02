@@ -168,6 +168,7 @@ struct input_processor_mouse_gesture_config {
     uint32_t idle_timeout_ms;  // Time to wait for idle before invoking gesture
     const struct gesture_pattern *patterns;  // Array of pointers to patterns
     size_t pattern_count;
+    bool suppress_movement;  // Suppress mouse movement while gesture is active
 };
 
 static void schedule_gesture_execution(const struct device *dev, const struct gesture_pattern *pattern);
@@ -497,6 +498,8 @@ static int input_processor_mouse_gesture_handle_event(const struct device *dev,
         return ZMK_INPUT_PROC_CONTINUE;
     }
 
+    struct input_processor_mouse_gesture_data *data = dev->data;
+
     struct mouse_rel_msg msg = {
         .dev = dev,
         .code = event->code,
@@ -509,6 +512,11 @@ static int input_processor_mouse_gesture_handle_event(const struct device *dev,
     }
 
     k_work_submit(&gesture_exec_work);
+
+    /* Suppress mouse movement if configured and gesture is active */
+    if (config->suppress_movement && data->is_active) {
+        return ZMK_INPUT_PROC_STOP;
+    }
 
     return ZMK_INPUT_PROC_CONTINUE;
 }
@@ -622,6 +630,7 @@ static const struct zmk_input_processor_driver_api input_processor_mouse_gesture
         .idle_timeout_ms = DT_INST_PROP_OR(n, idle_timeout_ms, 150),                                  \
         .patterns = gesture_patterns_##n,                                                             \
         .pattern_count = ARRAY_SIZE(gesture_patterns_##n),                                            \
+        .suppress_movement = DT_INST_PROP_OR(n, suppress_movement, false),                                            \
     };                                                                                                \
     DEVICE_DT_INST_DEFINE(n, input_processor_mouse_gesture_init, NULL,                                \
                           &input_processor_mouse_gesture_data_##n,                                    \
