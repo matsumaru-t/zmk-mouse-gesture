@@ -655,6 +655,8 @@ static const struct zmk_input_processor_driver_api input_processor_mouse_gesture
     static const struct gesture_pattern gesture_patterns_##n[] = {                                    \
         DT_FOREACH_CHILD(DT_DRV_INST(n), GESTURE_PATTERN_ENTRY)                                       \
     };                                                                                                \
+    COND_CODE_1(DT_INST_NODE_HAS_PROP(n, active_layers),                                              \
+        (static const uint8_t active_layers_##n[] = DT_INST_PROP(n, active_layers);), ())             \
     static struct input_processor_mouse_gesture_data                                                  \
         input_processor_mouse_gesture_data_##n = {};                                                  \
     static const struct input_processor_mouse_gesture_config                                          \
@@ -666,9 +668,10 @@ static const struct zmk_input_processor_driver_api input_processor_mouse_gesture
         .idle_timeout_ms = DT_INST_PROP_OR(n, idle_timeout_ms, 150),                                  \
         .patterns = gesture_patterns_##n,                                                             \
         .pattern_count = ARRAY_SIZE(gesture_patterns_##n),                                            \
-        .suppress_movement = DT_INST_PROP_OR(n, suppress_movement, false),                                            \
-        .active_layers = DT_INST_PROP_OR(n, active_layers, NULL),                                                     \
-        .active_layers_count = DT_INST_PROP_LEN_OR(n, active_layers, 0),                                              \
+        .suppress_movement = DT_INST_PROP_OR(n, suppress_movement, false),                            \
+        .active_layers = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, active_layers),                         \
+                                     (active_layers_##n), (NULL)),                                    \
+        .active_layers_count = DT_INST_PROP_LEN_OR(n, active_layers, 0),                              \
     };                                                                                                \
     DEVICE_DT_INST_DEFINE(n, input_processor_mouse_gesture_init, NULL,                                \
                           &input_processor_mouse_gesture_data_##n,                                    \
