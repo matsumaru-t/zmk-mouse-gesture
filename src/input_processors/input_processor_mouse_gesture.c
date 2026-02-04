@@ -505,6 +505,12 @@ static int input_processor_mouse_gesture_handle_event(const struct device *dev,
     const struct input_processor_mouse_gesture_config *config = dev->config;
     struct input_processor_mouse_gesture_data *data = dev->data;
 
+
+    /* Skip processing if current layer is not in active-layers */
+    if (!is_layer_active(config)) {
+        return ZMK_INPUT_PROC_CONTINUE;
+    }
+
     /* Only care about REL_X / REL_Y events */
     if (!(event->type == INPUT_EV_REL &&
           (event->code == INPUT_REL_X || event->code == INPUT_REL_Y))) {
