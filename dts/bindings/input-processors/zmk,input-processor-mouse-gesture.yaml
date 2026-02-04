@@ -43,6 +43,10 @@ properties:
     type: boolean
     description: "When enabled, mouse pointer movement is suppressed while gesture mode is active."
 
+  active-layers:
+    type: array
+    description: "Layer indices where this gesture processor is active. If not specified, active on all layers."
+
 child-binding:
   description: "Mouse gesture definition"
   properties:

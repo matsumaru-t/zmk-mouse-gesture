@@ -169,7 +169,23 @@ struct input_processor_mouse_gesture_config {
     const struct gesture_pattern *patterns;  // Array of pointers to patterns
     size_t pattern_count;
     bool suppress_movement;  // Suppress mouse movement while gesture is active
+    const uint8_t *active_layers;  // Array of layer indices where this processor is active
+    size_t active_layers_count;  // Number of active layers (0 means all layers)
 };
+
+// Helper function to check if current layer matches active layers
+static bool is_layer_active(const struct input_processor_mouse_gesture_config *config) {
+    if (config->active_layers_count == 0) {
+        return true;  // No restriction, active on all layers
+    }
+    uint8_t highest_layer = zmk_keymap_highest_layer_active();
+    for (size_t i = 0; i < config->active_layers_count; i++) {
+        if (config->active_layers[i] == highest_layer) {
+            return true;
+        }
+    }
+    return false;
+}
 
 static void schedule_gesture_execution(const struct device *dev, const struct gesture_pattern *pattern);
 static void clear_gesture_data_locked(struct input_processor_mouse_gesture_data *data);
@@ -593,9 +609,15 @@ static int mouse_gesture_state_listener(const zmk_event_t *eh) {
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(mouse_gesture_devs); i++) {
+        const struct device *dev = mouse_gesture_devs[i];
+        const struct input_processor_mouse_gesture_config *config = dev->config;
+        
+        // Only activate if this processor is configured for the current layer
+        bool should_activate = ev->is_active && is_layer_active(config);
+        
         struct state_action_msg msg = {
-            .dev = mouse_gesture_devs[i],
-            .activate = ev->is_active,
+            .dev = dev,
+            .activate = should_activate,
         };
         if (k_msgq_put(&state_action_msgq, &msg, K_MSEC(10)) != 0) {
             LOG_WRN("State action queue full – state change dropped");
@@ -645,6 +667,8 @@ static const struct zmk_input_processor_driver_api input_processor_mouse_gesture
         .patterns = gesture_patterns_##n,                                                             \
         .pattern_count = ARRAY_SIZE(gesture_patterns_##n),                                            \
         .suppress_movement = DT_INST_PROP_OR(n, suppress_movement, false),                                            \
+        .active_layers = DT_INST_PROP_OR(n, active_layers, NULL),                                                     \
+        .active_layers_count = DT_INST_PROP_LEN_OR(n, active_layers, 0),                                              \
     };                                                                                                \
     DEVICE_DT_INST_DEFINE(n, input_processor_mouse_gesture_init, NULL,                                \
                           &input_processor_mouse_gesture_data_##n,                                    \
